@@ -44,14 +44,12 @@ logging.info(boto3.client('sts').get_caller_identity())
 volume_id = args.existing_volume
 
 if volume_id is None:
-    result = aws.create_ebs()
+    volume_id = aws.create_ebs()
 
-    if result == -1:
+    if volume_id == -1:
         raise Exception('Critical error, aborting.')
 
-    logging.info(f'EBS volume created successfully with ID {result["VolumeId"]}')
-
-    volume_id = result["VolumeId"]
+    logging.info(f'EBS volume created successfully with ID {volume_id}')
 
 instance_id = args.existing_instance
 delete_instance_at_end = instance_id is None

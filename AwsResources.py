@@ -49,7 +49,7 @@ class AwsResources:
 
             raise Exception('Critical error, aborting.')
 
-    def create_ebs(self):
+    def create_ebs(self) -> Union[str, int]:
         tag_specifications = [{
             'ResourceType': 'volume',
             'Tags': [{
@@ -84,7 +84,7 @@ class AwsResources:
             logging.error(e)
             return -1
 
-        return response
+        return response["VolumeId"]
 
     def find_ami(self) -> str:
         images = self.ec2_resource.images.filter(
@@ -109,8 +109,8 @@ class AwsResources:
 
     def create_key_pair(self):
         response = self.ec2_client.create_key_pair(KeyName=self.key_name)
-        key_file = open(f'/tmp/{self.key_name}.pem', 'w')
-        key_file.write(response['KeyMaterial'])
+        with open(f'/tmp/{self.key_name}.pem', 'w') as key_file:
+            key_file.write(response['KeyMaterial'])
 
         os.chmod(f'/tmp/{self.key_name}.pem', 0o400)
 
@@ -182,12 +182,12 @@ class AwsResources:
             logging.error(e)
             return -1
 
-    def detach_ebs_from_instance(self, volume_id):
+    def detach_ebs_from_instance(self, volume_id: str):
         self.ec2_client.detach_volume(
             VolumeId=volume_id
         )
 
-    def delete_instance(self, instance_id):
+    def delete_instance(self, instance_id: str):
         self.ec2_client.terminate_instances(
             InstanceIds=[instance_id]
         )
