@@ -1,4 +1,8 @@
 import logging
+import os
+from random import randint
+from time import strptime
+from typing import Union
 
 import boto3
 
@@ -14,6 +18,9 @@ class AwsResources:
         self.region_name = args.region_name
         self.volume = None
 
+        # Random key name to allow concurrent executions
+        self.key_name = f'EBS-Cargo-{randint(100000, 1000000)}'
+
         if self.volume_type == 'io1' and self.iops is None:
             raise Exception('You need to specify IOPS if you are using a io1 volume')
 
@@ -28,9 +35,11 @@ class AwsResources:
 
         try:
             if self.region_name is not None:
-                self.client = boto3.client('ec2', region_name=args.region_name)
+                self.ec2_client = boto3.client('ec2', region_name=self.region_name)
+                self.ec2_resource = boto3.resource('ec2', region_name=self.region_name)
             else:
-                self.client = boto3.client('ec2')
+                self.ec2_client = boto3.client('ec2')
+                self.ec2_resource = boto3.resource('ec2')
         except Exception as e:
             logging.error('Impossible logging in:')
             logging.error(e)
@@ -54,7 +63,7 @@ class AwsResources:
         # valid types: <class 'int'>
         try:
             if self.iops is not None:
-                response = self.client.create_volume(
+                response = self.ec2_client.create_volume(
                     AvailabilityZone=self.availability_zone,
                     Encrypted=self.encrypted,
                     Iops=self.iops,
@@ -63,7 +72,7 @@ class AwsResources:
                     TagSpecifications=tag_specifications
                 )
             else:
-                response = self.client.create_volume(
+                response = self.ec2_client.create_volume(
                     AvailabilityZone=self.availability_zone,
                     Encrypted=self.encrypted,
                     Size=self.size,
@@ -77,30 +86,91 @@ class AwsResources:
 
         return response
 
-    def create_instance(self):
-        ec2 = boto3.resource('ec2', region_name=self.region_name)
-        image_iterator = ec2.images.filter(
+    def find_ami(self) -> str:
+        images = self.ec2_resource.images.filter(
             Filters=[
                 {
+                    'Name': 'architecture',
+                    'Values': ['x86_64']
+                },
+                {
                     'Name': 'name',
-                    'Values': ['ubuntu']
+                    'Values': ['ubuntu/images/hvm-ssd/ubuntu-xenial-*']
+                    # TODO: find a more appropriate AMI
                 }
-            ]
+            ],
+            Owners=['099720109477']  # Canonical
         )
 
-        print(list(image_iterator))
+        sorted_list = sorted(images, reverse=True,
+                             key=lambda i: strptime(i.creation_date, '%Y-%m-%dT%H:%M:%S.%fZ'))
 
-        # image_id = [image for image in image_iterator]
-        # print(image_id)
+        return [image for image in sorted_list][0].id
 
-        # instance = client.create_instances(
-        #     BlockDeviceMappings=[{
-        #
-        #     }]
-        # )
+    def create_key_pair(self):
+        response = self.ec2_client.create_key_pair(KeyName=self.key_name)
+        key_file = open(f'/tmp/{self.key_name}.pem', 'w')
+        key_file.write(response['KeyMaterial'])
+
+        os.chmod(f'/tmp/{self.key_name}.pem', 0o400)
+
+    def delete_key_pair(self):
+        self.ec2_client.delete_key_pair(KeyName=self.key_name)
+        os.remove(f'/tmp/{self.key_name}.pem')
+
+    def create_instance(self) -> Union[str, int]:
+        try:
+            image_id = self.find_ami()
+        except Exception as e:
+            logging.error('Impossible finding a valid AMI')
+            logging.error(e)
+
+            return -1
+
+        logging.info(f'Selected AMI with id {image_id}')
+
+        try:
+            self.create_key_pair()
+        except Exception as e:
+            logging.error('Impossible creating a new key pair')
+            logging.error(e)
+
+            return -1
+
+        try:
+            instances = self.ec2_resource.create_instances(
+                ImageId=image_id,
+                InstanceType='t2.micro',
+                TagSpecifications=[{
+                    'ResourceType': 'instance',
+                    'Tags': [{
+                        'Key': 'Name',
+                        'Value': 'Managed by EBS-Cargo'
+                    }]
+                }],
+                MinCount=1,
+                MaxCount=1,
+                KeyName=self.key_name,
+                Placement={
+                    'AvailabilityZone': self.availability_zone
+                }
+            )
+        except Exception as e:
+            logging.error('Impossible creating a custom instance')
+            logging.error(e)
+
+            return -1
+
+        return instances[0].id
 
     def attach_ebs_to_instance(self, volume_id, instance_id):
-        self.volume = self.client.Volume(volume_id)
+        instance = self.ec2_resource.Instance(instance_id)
+
+        logging.info('Waiting until the instance is running')
+        instance.wait_until_running()
+        logging.info('The instance is running')
+
+        self.volume = self.ec2_resource.Volume(volume_id)
 
         try:
             return self.volume.attach_to_instance(
@@ -111,3 +181,18 @@ class AwsResources:
             logging.error('Impossible attaching the EBS volume to the instance:')
             logging.error(e)
             return -1
+
+    def detach_ebs_from_instance(self, volume_id):
+        self.ec2_client.detach_volume(
+            VolumeId=volume_id
+        )
+
+    def delete_instance(self, instance_id):
+        self.ec2_client.terminate_instances(
+            InstanceIds=[instance_id]
+        )
+
+        logging.info('Waiting until the instance is terminated')
+        instance = self.ec2_resource.Instance(instance_id)
+        instance.wait_until_terminated()
+        logging.info('The instance is terminated')

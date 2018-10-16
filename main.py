@@ -49,7 +49,7 @@ if volume_id is None:
     if result == -1:
         raise Exception('Critical error, aborting.')
 
-    logging.warning(f'EBS volume created successfully with ID {result["VolumeId"]}')
+    logging.info(f'EBS volume created successfully with ID {result["VolumeId"]}')
 
     volume_id = result["VolumeId"]
 
@@ -57,13 +57,21 @@ instance_id = args.existing_instance
 delete_instance_at_end = instance_id is None
 
 if instance_id is None:
-    result = aws.create_instance()
+    instance_id = aws.create_instance()
 
-    if result == -1:
+    if instance_id == -1:
         raise Exception('Critical error, aborting.')
 
-    logging.warning(f'EBS volume created successfully with ID {result["VolumeId"]}')
-
-    instance_id = result["VolumeId"]
+    logging.info(f'Instance created successfully with ID {instance_id}')
 
 aws.attach_ebs_to_instance(volume_id, instance_id)
+
+# TODO add rsync
+
+aws.detach_ebs_from_instance(volume_id)
+
+if delete_instance_at_end:
+    logging.info('Cleaning after ourselves')
+    aws.delete_key_pair()
+    logging.info('Key pair destroyed')
+    aws.delete_instance(instance_id)
