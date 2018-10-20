@@ -1,1 +1,2 @@
+paramiko
 boto3==1.9.23
