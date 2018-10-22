@@ -6,8 +6,8 @@ from Ssh import Ssh
 from rsync import perform_rsync
 
 parser = argparse.ArgumentParser(description='Load data on an AWS EBS volume')
-parser.add_argument('source', metavar='src', type=str, help='Your source directory')
-parser.add_argument('--dst', help='Specify a directory as destination. If None, src will be saved '
+parser.add_argument('source', metavar='src', type=str, help='your source directory')
+parser.add_argument('--dst', help='specify a directory as destination. If None, src will be saved '
                                   'in the root directory', default='')
 parser.add_argument('--existing-volume', help='specifies an already existing EBS volume by its '
                                               'Volume ID')
@@ -30,15 +30,15 @@ parser.add_argument('--iops', help='the number of I/O operations per second (IOP
                                    'IOPS SSD (io1) volumes. (default: %(default)s)', type=int)
 parser.add_argument('--size', help='The size of the volume, in GiBs. (default: %(default)s)',
                     type=int, default=1024)
-parser.add_argument('--volume-type', help='The volume type. This can be gp2 for General Purpose '
+parser.add_argument('--volume-type', help='the volume type. This can be gp2 for General Purpose '
                                           'SSD, io1 for Provisioned IOPS SSD, st1 for Throughput '
                                           'Optimized HDD, sc1 for Cold HDD, or standard for '
                                           'Magnetic volumes. (default: %(default)s)',
                     choices=['gp2', 'io1', 'st1', 'sc1', 'standard'], default='gp2')
-parser.add_argument('--region-name', help='If specified, overrides the default region zone '
+parser.add_argument('--region-name', help='if specified, overrides the default region zone '
                                           'specified in the credentials file')
-parser.add_argument('--verbose', action='store_true', help='More verbose logging')
-parser.add_argument('--debug', action='store_true', help='Log everything for debugging purpose')
+parser.add_argument('--verbose', action='store_true', help='more verbose logging')
+parser.add_argument('--debug', action='store_true', help='log everything for debugging purpose')
 
 args = parser.parse_args()
 
