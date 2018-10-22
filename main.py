@@ -8,15 +8,18 @@ from rsync import perform_rsync
 parser = argparse.ArgumentParser(description='Load data on an AWS EBS volume')
 parser.add_argument('source', metavar='src', type=str, help='Your source directory')
 parser.add_argument('--dst', help='Specify a directory as destination. If None, src will be saved '
-                                  'in the root directory')
+                                  'in the root directory', default='')
 parser.add_argument('--existing-volume', help='specifies an already existing EBS volume by its '
                                               'Volume ID')
 parser.add_argument('--existing-instance', help='specifies an already existing EC2 instance to use '
                                                 'to load data. If none is specified, a new one '
-                                                'will be create and destroyed at the end of the '
+                                                'will be created and destroyed at the end of the '
                                                 'process')
+parser.add_argument('--instance-user', help='the user to log in an existing instance',
+                    default='ec2-user')
 parser.add_argument('--volume-name', help='specifies a name for the volume')
-parser.add_argument('--filesystem', help='the filesystem to create on a new EBS. (default: %(default)s)', default='ext4')
+parser.add_argument('--filesystem', help='the filesystem to create on a new EBS. '
+                                         '(default: %(default)s)', default='ext4')
 parser.add_argument('--availability-zone', help='the Availability Zone in which to create the '
                                                 'volume (default: %(default)s)',
                     default='eu-central-1a')
@@ -69,17 +72,18 @@ aws.attach_ebs_to_instance(volume_id, instance_id)
 
 instance_hostname = aws.retrieve_instance_hostname(instance_id)
 
-ssh_client = Ssh(instance_hostname, f'/tmp/{aws.key_name}.pem')
+ssh_client = Ssh(args.instance_user, instance_hostname, f'/tmp/{aws.key_name}.pem')
 
 if not args.existing_volume:
     ssh_client.format_volume(args.filesystem)
 
 ssh_client.mount_volume()
 
-if args.dst is not None:
+if args.dst is not None and args.dst is not '':
     ssh_client.create_directory(args.dst)
 
-perform_rsync(args.source, instance_hostname, f'/tmp/{aws.key_name}.pem', args.dst)
+perform_rsync(args.source, args.dst, args.instance_user, instance_hostname,
+              f'/tmp/{aws.key_name}.pem')
 
 aws.detach_ebs_from_instance(volume_id)
 

@@ -2,10 +2,11 @@ import logging
 import subprocess
 
 
-def perform_rsync(src: str, hostname: str, key_file: str, dst: str = ''):
-    command = f'rsync -rave --progress "ssh -i {key_file}" {src} ubuntu@{hostname}:/dev/sdk/{dst}'
+def perform_rsync(src: str, dst: str, user: str, hostname: str, key_file: str):
+    command = f'rsync -rae "ssh -o StrictHostKeyChecking=no -i {key_file}" {src} ' \
+              f'{user}@{hostname}:/ebs-cargo-data/{dst} --progress --keep-dirlinks'
 
-    popen = subprocess.Popen(command, stdout=subprocess.PIPE, universal_newlines=True)
+    popen = subprocess.Popen(command, stdout=subprocess.PIPE, universal_newlines=True, shell=True)
     for stdout_line in iter(popen.stdout.readline, ""):
         logging.info(stdout_line)
 

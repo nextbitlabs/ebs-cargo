@@ -41,7 +41,7 @@ class AwsResources:
                 self.ec2_client = boto3.client('ec2')
                 self.ec2_resource = boto3.resource('ec2')
 
-            logging.info(boto3.client('sts').get_caller_identity())
+            logging.debug(boto3.client('sts').get_caller_identity())
         except Exception as e:
             logging.error('Impossible logging in:')
             logging.error(e)
@@ -89,6 +89,10 @@ class AwsResources:
         return response["VolumeId"]
 
     def find_ami(self) -> str:
+        # We use Amazon Linux 2, because it has an important functionality:
+        # when you attach an EBS, Amazon Linux creates a symbolic link for the name you
+        # specified to the renamed device.
+        # In this way we always know where we can reach the attached EBS
         images = self.ec2_resource.images.filter(
             Filters=[
                 {
@@ -97,11 +101,10 @@ class AwsResources:
                 },
                 {
                     'Name': 'name',
-                    'Values': ['ubuntu/images/hvm-ssd/ubuntu-xenial-*']
-                    # TODO: find a more appropriate AMI
-                }
+                    'Values': ['amzn2-ami-hvm-2.0*']
+                },
             ],
-            Owners=['099720109477']  # Canonical
+            Owners=['amazon']
         )
 
         sorted_list = sorted(images, reverse=True,
@@ -182,14 +185,11 @@ class AwsResources:
                 InstanceId=instance_id
             )
 
-            logging.info(result)
+            logging.debug(result)
 
-            logging.info('Waiting for the   volume to be ready')
+            logging.info('Waiting for the volume to be ready')
             waiter = self.ec2_client.get_waiter('volume_in_use')
             waiter.wait(VolumeIds=[self.volume.id])
-
-            self.volume.reload()
-            logging.info(self.volume.attachments)
 
         except Exception as e:
             logging.error('Impossible attaching the EBS volume to the instance:')

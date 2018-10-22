@@ -4,16 +4,17 @@ import paramiko as paramiko
 
 
 class Ssh:
-    def __init__(self, hostname: str, key: str):
+    def __init__(self, user: str, hostname: str, key: str):
         self.ssh_client = paramiko.SSHClient()
         self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.ssh_client.connect(hostname, username='ubuntu', key_filename=key)
+        self.ssh_client.connect(hostname, username=user, key_filename=key)
+        self.user = user
 
     def exec_command(self, command: str):
         stdin, stdout, stderr = self.ssh_client.exec_command(command)
 
         for line in stdout.readlines():
-            logging.info(line)
+            logging.debug(line)
 
         for line in stderr.readlines():
             logging.error(line)
@@ -26,6 +27,7 @@ class Ssh:
         logging.info('Mounting EBS')
         self.exec_command('sudo mkdir /ebs-cargo-data')
         self.exec_command('sudo mount /dev/sdk /ebs-cargo-data')
+        self.exec_command(f'sudo chown {self.user}:{self.user} -R /ebs-cargo-data')
 
     def create_directory(self, dst: str):
         logging.info('Creating directory')
