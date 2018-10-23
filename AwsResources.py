@@ -2,7 +2,7 @@ import logging
 import os
 from random import randint
 from time import strptime
-from typing import Union
+from typing import Union, Tuple
 
 import boto3
 
@@ -40,6 +40,8 @@ class AwsResources:
             else:
                 self.ec2_client = boto3.client('ec2')
                 self.ec2_resource = boto3.resource('ec2')
+
+            logging.debug(boto3.client('sts').get_caller_identity())
         except Exception as e:
             logging.error('Impossible logging in:')
             logging.error(e)
@@ -87,6 +89,10 @@ class AwsResources:
         return response["VolumeId"]
 
     def find_ami(self) -> str:
+        # We use Amazon Linux 2, because it has an important functionality:
+        # when you attach an EBS, Amazon Linux creates a symbolic link for the name you
+        # specified to the renamed device.
+        # In this way we always know where we can reach the attached EBS
         images = self.ec2_resource.images.filter(
             Filters=[
                 {
@@ -95,11 +101,10 @@ class AwsResources:
                 },
                 {
                     'Name': 'name',
-                    'Values': ['ubuntu/images/hvm-ssd/ubuntu-xenial-*']
-                    # TODO: find a more appropriate AMI
-                }
+                    'Values': ['amzn2-ami-hvm-2.0*']
+                },
             ],
-            Owners=['099720109477']  # Canonical
+            Owners=['amazon']
         )
 
         sorted_list = sorted(images, reverse=True,
@@ -173,10 +178,19 @@ class AwsResources:
         self.volume = self.ec2_resource.Volume(volume_id)
 
         try:
-            return self.volume.attach_to_instance(
+            logging.info('Attaching volume to the instance')
+
+            result = self.volume.attach_to_instance(
                 Device='/dev/sdk',
                 InstanceId=instance_id
             )
+
+            logging.debug(result)
+
+            logging.info('Waiting for the volume to be ready')
+            waiter = self.ec2_client.get_waiter('volume_in_use')
+            waiter.wait(VolumeIds=[self.volume.id])
+
         except Exception as e:
             logging.error('Impossible attaching the EBS volume to the instance:')
             logging.error(e)
@@ -196,3 +210,6 @@ class AwsResources:
         instance = self.ec2_resource.Instance(instance_id)
         instance.wait_until_terminated()
         logging.info('The instance is terminated')
+
+    def retrieve_instance_hostname(self, instance_id: str) -> str:
+        return self.ec2_resource.Instance(instance_id).public_dns_name
