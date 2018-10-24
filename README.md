@@ -1,6 +1,6 @@
 **WARNING: this software is in pre-alpha. The happy flow works, but not all the flags combinations have been tested.**
 
-**BE CAREFUL USING IT WITH ALREADY EXISTING EBS VOLUME, DATA CAN BE LOST**
+**BE CAREFUL USING IT WITH ALREADY EXISTING EBS VOLUMES, DATA CAN BE LOST IF YOU SPECIFY AS TARGET AN ALREADY EXISTING DIRECTORY**
 
 Please test it and report issues, patches are more than welcome.
 
@@ -8,9 +8,9 @@ Please test it and report issues, patches are more than welcome.
 
 A small utility to simplify loading GBs of data in an EBS volume on AWS.
 
-When you want to load data on a new EBS volume, lot of operations have to be done: logging in AWS, creating a volume, creating an instance, attaching the volume, formatting it, mounting it, download instance keys, using them to sync data, detaching the EBS and so on.
+When you want to load data on a new EBS volume, lots of operations have to be done: logging in AWS, creating a volume, creating an instance, attaching the volume, formatting it, mounting it, downloading instance keys, using them to sync data, detaching the EBS and so on.
 
-Wouldn't be simple just having to launch a command indicating which local directory you want to upload?
+Wouldn't be easier just having to launch a command indicating which local directory you want to upload?
 
 Thanks to EBS-Cargo you can do that!
 
@@ -42,7 +42,7 @@ python3 main.py ~/clone-this
 
 Sane defaults are set for all the options.
 
-You can see all the possible options using:
+You can see all the available options using:
 
 ```
 python3 main.py --help
